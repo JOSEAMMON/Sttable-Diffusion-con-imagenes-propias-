@@ -21,3 +21,4 @@ CREAR DATASET:
 -Evita usar demasiadas selfies, si no quieres que StableDiffusion te genere selfies montadas en cuerpos normales que se ven muy mal
 -Evita los bordes oscuros o marcos en tus fotos 
 
+![imagen1](https://github.com/JOSEAMMON/Sttable-Diffusion-con-imagenes-propias-/blob/main/imagenes/9-256.jpg), 
