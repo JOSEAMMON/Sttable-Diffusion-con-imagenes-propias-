@@ -41,6 +41,8 @@ drive.mount('/content/gdrive')
 
 ```
 ###  **Paso 4**    - Instalamos las librerías necesarias.
+
+**DEPENDENCIAS** 
 ``` 
 #@markdown # Dependencies
 %%capture
@@ -57,6 +59,62 @@ drive.mount('/content/gdrive')
 !rm -r /content/usr
 
 ```
+**XFORMERS**
 
+```
+#@markdown # xformers
 
+from subprocess import getoutput
+from IPython.display import HTML
+from IPython.display import clear_output
+import time
+
+s = getoutput('nvidia-smi')
+if 'T4' in s:
+  gpu = 'T4'
+elif 'P100' in s:
+  gpu = 'P100'
+elif 'V100' in s:
+  gpu = 'V100'
+elif 'A100' in s:
+  gpu = 'A100'
+
+while True:
+    try: 
+        gpu=='T4'or gpu=='P100'or gpu=='V100'or gpu=='A100'
+        break
+    except:
+        pass
+    print('[1;31mit seems that your GPU is not supported at the moment')
+    time.sleep(5)
+
+if (gpu=='T4'):
+  %pip install -q https://github.com/TheLastBen/fast-stable-diffusion/raw/main/precompiled/T4/xformers-0.0.13.dev0-py3-none-any.whl
+  
+elif (gpu=='P100'):
+  %pip install -q https://github.com/TheLastBen/fast-stable-diffusion/raw/main/precompiled/P100/xformers-0.0.13.dev0-py3-none-any.whl
+
+elif (gpu=='V100'):
+  %pip install -q https://github.com/TheLastBen/fast-stable-diffusion/raw/main/precompiled/V100/xformers-0.0.13.dev0-py3-none-any.whl
+
+elif (gpu=='A100'):
+  %pip install -q https://github.com/TheLastBen/fast-stable-diffusion/raw/main/precompiled/A100/xformers-0.0.13.dev0-py3-none-any.whl  
+
+clear_output()
+print('[1;32mDONE !')
+
+```
+### **Paso 5** 
+Descargamos el modelo .ckpt de Stable Diffusion original.
+
+AQUI LO QUE TENEMOS QUE HACER ES PONER UN TOKEN DE CLAVE DE HUGGING FACE.
+
+*o lo ponemos abajo dentro del cuadrito del codigo o lo ponemos a la derecha, en la linea de Huggingface_Token*
+
+Entramos en Hugging Face, con el enlace que nos marca para pedir la clave de acceso:
+
+- Entramos en el icono de nosotros , arriba a la derecha
+- Seetings 
+- Luego en access Tokens
+- Y luego solo pedimos un token nuevo
 
