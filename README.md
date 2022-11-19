@@ -753,6 +753,18 @@ with capture.capture_output() as cap:
  
 
 
+DreamBooth colab From https://github.com/TheLastBen/fast-stable-diffusion
+ 
+Automatic111  https://github.com/AUTOMATIC1111/stable-diffusion-webui
+
+Hugginface    https://huggingface.co/
+
+DOTCSV        https://www.youtube.com/channel/UCy5znSnfMsDwaLlROnZ7Qbg
+
+JOE PENA      https://github.com/JoePenna/Dreambooth-Stable-Diffusion
+
+
+
 
 
 
