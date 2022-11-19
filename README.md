@@ -6,7 +6,7 @@ Creacion de imagenes con Sttable Diffusion a partir de una persona, mascota,cosa
 ##  Pasos a seguir para la creacion de una imagen con sttable diffusion
 
 
-**PASO 1**
+###    **PASO 1**
 
 CREAR DATASET:
 
@@ -22,7 +22,41 @@ CREAR DATASET:
 -Evita los bordes oscuros o marcos en tus fotos 
 
 
-**PASO 2** 
+###    **PASO 2** 
 Redimensionar las fotos 512x512 en photoshop o en nuestro editor de confianza, al final tendremos una carpeta con + o - 20 imagenes.
 
-LUEGO SEGUIMOS CON LO DE ABAJO
+
+#### Ten activada la Aceleracion por hardware con GPU en " Entorno de ejecucuion"
+
+```
+!nvidia-smi -L'
+
+```
+###  **PASO 3**   
+CONECTAMOS CON GOOGLE DRIVE. Importante tener libres unos 4GB si no, el archivo de entrenamiento final no se guardará 
+
+```
+from google.colab import drive
+drive.mount('/content/gdrive')
+
+```
+###  **Paso 4**    - Instalamos las librerías necesarias.
+``` 
+#@markdown # Dependencies
+%%capture
+%cd /content/
+!git clone https://github.com/TheLastBen/diffusers
+!pip install -q git+https://github.com/TheLastBen/diffusers
+!pip install -q accelerate==0.12.0
+!pip install -q OmegaConf
+!wget https://github.com/TheLastBen/fast-stable-diffusion/raw/main/Dreambooth/Deps
+!mv Deps Deps.7z
+!7z x Deps.7z
+!cp -r /content/usr/local/lib/python3.7/dist-packages /usr/local/lib/python3.7/
+!rm Deps.7z
+!rm -r /content/usr
+
+```
+
+
+
