@@ -761,7 +761,7 @@ Hugginface    https://huggingface.co/
 
 DOTCSV        https://www.youtube.com/channel/UCy5znSnfMsDwaLlROnZ7Qbg
 
-JOE PENA      https://github.com/JoePenna/Dreambooth-Stable-Diffusion
+JOE PENNA      https://github.com/JoePenna/Dreambooth-Stable-Diffusion
 
 
 
