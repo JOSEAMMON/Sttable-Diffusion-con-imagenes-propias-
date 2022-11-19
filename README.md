@@ -252,9 +252,9 @@ elif token !="":
          print('[1;31mMake sure you accepted the terms in https://huggingface.co/runwayml/stable-diffusion-v1-5')
          time.sleep(5)
          
-         ```
+   ```
 
-### **Paso 6** - Configuramos el entrenamiento de Dreambooth.
+### **Paso 6**  - Configuramos el entrenamiento de Dreambooth.
 
 **TRAINING SUBJECT**
 En este apartado le debemos decir a drembooth para que entienda la tarea que haga.
@@ -405,6 +405,350 @@ Como hemos puesto arriba la clase " person " vamos a elegir el dataset " person_
 
 En caso de que no coincida con ninguno lo podemos dejar sin ejecutar pero la opcion será bastante mas lenta 
 
+```
+#@markdown We’ve created the following image sets
+#@markdown - `man_euler` - provided by Niko Pueringer (Corridor Digital) - euler @ 40 steps, CFG 7.5
+#@markdown - `man_unsplash` - pictures from various photographers
+#@markdown - `person_ddim`
+#@markdown - `woman_ddim` - provided by David Bielejeski - ddim @ 50 steps, CFG 10.0 <br />
+#@markdown - `blonde_woman` - provided by David Bielejeski - ddim @ 50 steps, CFG 10.0 <br />
+
+dataset="person_ddim" #@param ["man_euler", "man_unsplash", "person_ddim", "woman_ddim", "blonde_woman"]
+!git clone https://github.com/djbielejeski/Stable-Diffusion-Regularization-Images-{dataset}.git
+
+!mkdir -p regularization_images/{dataset}
+!mv -v Stable-Diffusion-Regularization-Images-{dataset}/{dataset}/*.* regularization_images/{dataset}
+CLASS_DIR="/content/regularization_images/" + dataset
+
+```
+
+### **Paso 8** - ...y ahora **¡A ENTRENAR!** 💪
+
+Le damos a ejecutar , sin cambiar nada , si todo esta bien saldra un panel que pondra " TRAINING " , tardará mas o menos 40 minutos 1 hora depende de la tarjeta grafica que nos hayan asignado , SI TODO HA ESTADO BIEN " IMPORTANTE " SI HEMOS DEJADO ESPACIO EN DRIVE ( 2GB) , NOS GUARDARA AL FINAL UN ARCHIVO DEL ENTRENAMIENTO ". CKPT"  EN EL DRIVE.
+
+```
+#@markdown ---
+import os
+from subprocess import getoutput
+from IPython.display import HTML
+
+fp16 = True #@param {type:"boolean"}
+if fp16:
+  prec="fp16"
+else:
+  prec="no"
+
+#@markdown  - fp16 or half precision meaning slightly lower quality but double the speed.
+s = getoutput('nvidia-smi')
+if 'A100' in s:
+  precision="no"
+else:
+  precision=prec
+
+Training_Steps="1600" #@param{type: 'string'}
+#@markdown - Keep it around 1600 to avoid overtraining.
+
+Seed=75576 #@param{type: 'number'}
+
+#@markdown ---------------------------
+Save_Checkpoint_Every_n_Steps = False #@param {type:"boolean"}
+Save_Checkpoint_Every=500 #@param{type: 'number'}
+if Save_Checkpoint_Every==None:
+  Save_Checkpoint_Every=1
+#@markdown - Minimum 200 steps between each save.
+stp=0
+Start_saving_from_the_step=500 #@param{type: 'number'}
+if Start_saving_from_the_step==None:
+  Start_saving_from_the_step=0
+if (Start_saving_from_the_step < 200):
+  Start_saving_from_the_step=Save_Checkpoint_Every
+stpsv=Start_saving_from_the_step
+if Save_Checkpoint_Every_n_Steps:
+  stp=Save_Checkpoint_Every
+#@markdown - Start saving intermediary checkpoints from this step.
+
+Caption=''
+if Captionned_instance_images:
+  Caption='--image_captions_filename'
+
+if With_Prior_Preservation=='No':
+  !accelerate launch /content/diffusers/examples/dreambooth/train_dreambooth.py \
+    $Caption \
+    --save_starting_step=$stpsv \
+    --save_n_steps=$stp \
+    --train_text_encoder \
+    --pretrained_model_name_or_path="$MODEL_NAME" \
+    --instance_data_dir="$INSTANCE_DIR" \
+    --output_dir="$OUTPUT_DIR" \
+    --instance_prompt="$PT" \
+    --seed=$Seed \
+    --resolution=512 \
+    --mixed_precision=$precision \
+    --train_batch_size=1 \
+    --gradient_accumulation_steps=1 \
+    --use_8bit_adam \
+    --learning_rate=1e-6 \
+    --lr_scheduler="constant" \
+    --center_crop \
+    --lr_warmup_steps=0 \
+    --max_train_steps=$Training_Steps 
+
+else:
+
+  !accelerate launch /content/diffusers/examples/dreambooth/train_dreambooth.py \
+    $Caption \
+    --save_starting_step=$stpsv \
+    --save_n_steps=$stp \
+    --train_text_encoder \
+    --pretrained_model_name_or_path="$MODEL_NAME" \
+    --instance_data_dir="$INSTANCE_DIR" \
+    --class_data_dir="$CLASS_DIR" \
+    --output_dir="$OUTPUT_DIR" \
+    --with_prior_preservation --prior_loss_weight=1.0 \
+    --instance_prompt="$PT"\
+    --class_prompt="$CPT" \
+    --seed=$Seed \
+    --resolution=512 \
+    --mixed_precision=$precision \
+    --train_batch_size=1 \
+    --gradient_accumulation_steps=1 --gradient_checkpointing \
+    --use_8bit_adam \
+    --learning_rate=1e-6 \
+    --lr_scheduler="constant" \
+    --lr_warmup_steps=0 \
+    --center_crop \
+    --max_train_steps=$Training_Steps \
+    --num_class_images=$SUBJECT_IMAGES
+
+if Save_class_images_to_gdrive:
+  if os.path.exists(str(CLASS_DIR)):
+    if not os.path.exists('/content/gdrive/MyDrive/Class_images'):
+      !mkdir /content/gdrive/MyDrive/Class_images
+    Class_gdir= '/content/gdrive/MyDrive/Class_images/'+SUBJECT_TYPE
+    if not os.path.exists(str(Class_gdir)):
+      !cp -r "$CLASS_DIR" /content/gdrive/MyDrive/Class_images
+
+if os.path.exists('/content/models/'+INSTANCE_NAME+'/unet/diffusion_pytorch_model.bin'):
+  print("Almost done ...")
+  %cd /content    
+  !wget -O convertosd.py https://github.com/TheLastBen/fast-stable-diffusion/raw/main/Dreambooth/convertosd.py
+  clear_output()
+  if precision=="no":
+    !sed -i '226s@.*@@' /content/convertosd.py
+  !sed -i '201s@.*@    model_path = "{OUTPUT_DIR}"@' /content/convertosd.py
+  !sed -i '202s@.*@    checkpoint_path= "/content/gdrive/MyDrive/{INSTANCE_NAME}.ckpt"@' /content/convertosd.py
+  !python /content/convertosd.py
+  clear_output()
+  if os.path.exists('/content/gdrive/MyDrive/'+INSTANCE_NAME+'.ckpt'):
+    print("[1;32mDONE, the CKPT model is in your Gdrive")
+  else:
+    print("[1;31mSomething went wrong")
+else:
+  print("[1;31mSomething went wrong")
+  
+  ```
+  En caso de que despues del entrenamiento no acabe de parecerse a ti, puede ser porque las imagenes no acaban de estar bien definidas, ( probar con cambiar imagenes ) o darle mas trianing steps de entrenamiento ( por ejemplo 3000) pero puede ser que tengas un overfitting y te de mal las imagenes , por lo que habria que bajarlo, por ejemplo (2500) hay que encontrar el numero que le vaya bien.
+  
+  Despues del entrenamiento en google drive nos aparecera el archivo del entrenamiento que nos podemos llevar a cualquier programa para utilizarlo
+  
+  ### **Paso 9** (Opcional) - **Prueba el modelo**
+  
+  Esta es una opcion para probar el modelo , damos a ejecutar **sin tocar nada**,
+
+Lo que hace es crearnos una interfaz para poder utilizar stabble diffusion desde collab .. ( Esto tarda un poco )
+
+Una vez este todo ejecutado abajo nos pone ," Running on local URL " y te da un enlace, que ten lleva a una aplicacion para utlizar stabble diffusion desde collab.
+
+**COMO ESCRIBIR EL TEXTO " PROMPT INPUT "**  
+Donde escribes el texto , tienes que escribirlo sobre el token que tu has puesto: por ejemplo si mi token es " JAAAM"  seria  "a photagraph of JAAM", debemos construir inputs complejos para que defina mejor el dibujo, si no , no llega a hacerlos bien. 
+
+imputs de ejemplo que va bien
+
+SUBIR SAMPLING STEPS A 50 ( VA MEJOR LA DEFINICION ) 
+
+🡆 Modelos con traje:   
+Close portrait of elegant [tu_token] person in tailored suit- futurist style, intricate baroque detial, elegant, glowing lights, highly detailed, digital painting, artstation, concept art, smooth, sharp focus, illustration, art by wlop, mars ravelo and greg rutkowski
+
+🡆  Ilustración de fantasía:   
+Highly detailed portrait of [tu_token], stephen bliss, unreal engine, fantasy art by greg rutkowski, loish, rhads, ferdinand knab, makoto shinkai and lois van baarle, ilya kuvshinov, rossdraws, tom bagshaw, alphonse mucha, global illumination, radiant light, detailed and intricate environment
+
+🡆 Tu funko pop:   
+A funko pop of [tu_token]
+
+🡆 Tu personaje de Pixar:    
+highly detailed still of [tu_token] as a Pixar movie 3d character, renderman engine
+
+
+*no marcar la casilla **update_repo** " ya que queremos utilizar el archivo que hemos entrenado antes, esta opcion es para generear desde 0 con una archivo ya preentrenado*" 
+
+
+```
+import os
+from IPython.display import clear_output
+from subprocess import getoutput
+from IPython.utils import capture
+import time
+
+Update_repo = False #@param {type:"boolean"}
+
+INSTANCE__NAME="" #@param{type: 'string'}
+
+#@markdown - Leave empty if you want to use the current trained model
+
+if INSTANCE__NAME!="":
+  INSTANCE_NAME=INSTANCE__NAME
+
+Use_Custom_Path = False #@param {type:"boolean"}
+
+try:
+  INSTANCE_NAME
+  if Use_Custom_Path:
+    del INSTANCE_NAME
+except:
+  pass
+#@markdown - if checked, an input box will ask the full path to a desired model
+
+try:
+  INSTANCE_NAME
+  path_to_trained_model='/content/gdrive/MyDrive/'+INSTANCE_NAME+'.ckpt'
+except:
+  print('[1;31mIt seems that you did not perform training during this session [1;32mor you chose to use a custom path,\nprovide the full path to the model (including the name of the model):\n')
+  path_to_trained_model=input()
+     
+while not os.path.exists(path_to_trained_model):
+   print("[1;31mThe model doesn't exist on you Gdrive, use the file explorer to get the path : ")
+   path_to_trained_model=input()
+
+         
+with capture.capture_output() as cap:
+    %cd /content/gdrive/MyDrive/
+    %mkdir sd
+    %cd sd
+    !git clone https://github.com/CompVis/stable-diffusion
+    !git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui
+    %cd /content/gdrive/MyDrive/sd/stable-diffusion-webui/
+    !mkdir -p cache/{huggingface,torch}
+    %cd /content/
+    !ln -s /content/gdrive/MyDrive/sd/stable-diffusion-webui/cache/huggingface ../root/.cache/
+    !ln -s /content/gdrive/MyDrive/sd/stable-diffusion-webui/cache/torch ../root/.cache/
+
+if Update_repo:
+  !rm /content/gdrive/MyDrive/sd/stable-diffusion-webui/webui.sh  
+  !rm /content/gdrive/MyDrive/sd/stable-diffusion-webui/modules/paths.py
+  !rm /content/gdrive/MyDrive/sd/stable-diffusion-webui/webui.py 
+  !rm /content/gdrive/MyDrive/sd/stable-diffusion-webui/modules/ui.py
+  !rm /content/gdrive/MyDrive/sd/stable-diffusion-webui/style.css
+  %cd /content/gdrive/MyDrive/sd/stable-diffusion-webui/
+  clear_output()
+  print('[1;32m')
+  !git pull
+
+
+with capture.capture_output() as cap:  
+  if not os.path.exists('/content/gdrive/MyDrive/sd/stable-diffusion/src/k-diffusion/k_diffusion'):
+    !mkdir /content/gdrive/MyDrive/sd/stable-diffusion/src
+    %cd /content/gdrive/MyDrive/sd/stable-diffusion/src
+    !git clone https://github.com/CompVis/taming-transformers
+    !git clone https://github.com/openai/CLIP
+    !mv /content/gdrive/MyDrive/sd/stable-diffusion/src/CLIP /content/gdrive/MyDrive/sd/stable-diffusion/src/clip
+    !git clone https://github.com/TencentARC/GFPGAN
+    !mv  /content/gdrive/MyDrive/sd/stable-diffusion/src/GFPGAN/gfpgan /content/gdrive/MyDrive/sd/stable-diffusion-webui
+    !git clone https://github.com/salesforce/BLIP
+    !mv  /content/gdrive/MyDrive/sd/stable-diffusion/src/BLIP /content/gdrive/MyDrive/sd/stable-diffusion/src/blip
+    !git clone https://github.com/sczhou/CodeFormer
+    !mv  /content/gdrive/MyDrive/sd/stable-diffusion/src/CodeFormer /content/gdrive/MyDrive/sd/stable-diffusion/src/codeformer
+    !git clone https://github.com/xinntao/Real-ESRGAN
+    !mv  /content/gdrive/MyDrive/sd/stable-diffusion/src/Real-ESRGAN/ /content/gdrive/MyDrive/sd/stable-diffusion/src/realesrgan
+    !git clone https://github.com/crowsonkb/k-diffusion.git
+    !cp -r /content/gdrive/MyDrive/sd/stable-diffusion/src/k-diffusion/k_diffusion /content/gdrive/MyDrive/sd/stable-diffusion-webui
+    !git clone https://github.com/Hafiidz/latent-diffusion
+    !cp -r  /content/gdrive/MyDrive/sd/stable-diffusion/ldm /content/gdrive/MyDrive/sd/stable-diffusion-webui/
+
+
+with capture.capture_output() as cap:
+  if not os.path.exists('/usr/local/lib/python3.7/dist-packages/gradio-3.4b3.dist-info'):
+    %cd /content/
+    !wget https://github.com/TheLastBen/fast-stable-diffusion/raw/main/Dependencies/Dependencies_AUT.1
+    !wget https://github.com/TheLastBen/fast-stable-diffusion/raw/main/Dependencies/Dependencies_AUT.2
+    %mv Dependencies_AUT.1 Dependencies_AUT.7z.001
+    %mv Dependencies_AUT.2 Dependencies_AUT.7z.002
+    !7z x Dependencies_AUT.7z.001
+    time.sleep(2)
+    !rm -r /content/usr/local/lib/python3.7/dist-packages/transformers
+    !rm -r /content/usr/local/lib/python3.7/dist-packages/transformers-4.19.2.dist-info
+    !rm -r /content/usr/local/lib/python3.7/dist-packages/diffusers
+    !rm -r /content/usr/local/lib/python3.7/dist-packages/diffusers-0.3.0.dist-info
+    !rm -r /content/usr/local/lib/python3.7/dist-packages/accelerate
+    !rm -r /content/usr/local/lib/python3.7/dist-packages/accelerate-0.12.0.dist-info    
+    !cp -r /content/usr/local/lib/python3.7/dist-packages /usr/local/lib/python3.7/
+    !rm -r /content/usr
+    !rm Dependencies_AUT.7z.001
+    !rm Dependencies_AUT.7z.002
+    %cd /content/gdrive/MyDrive/sd/stable-diffusion-webui/ldm/modules
+    !wget -O attention.py https://raw.githubusercontent.com/TheLastBen/fast-stable-diffusion/main/precompiled/attention.py
+    
+
+
+with capture.capture_output() as cap:
+  %cd /content/gdrive/MyDrive/sd/stable-diffusion-webui/modules
+  !wget -O paths.py https://raw.githubusercontent.com/TheLastBen/fast-stable-diffusion/main/AUTOMATIC1111_files/paths.py
+  if not os.path.exists('/tools/node/bin/lt'):
+    !npm install -g localtunnel
+
+with capture.capture_output() as cap: 
+  %cd /content/gdrive/MyDrive/sd/stable-diffusion-webui/
+  time.sleep(1)
+  !wget -O webui.py https://raw.githubusercontent.com/AUTOMATIC1111/stable-diffusion-webui/master/webui.py
+  !sed -i 's@gpu_call).*@gpu_call) \n        demo.queue(concurrency_count=111500)@' /content/gdrive/MyDrive/sd/stable-diffusion-webui/webui.py
+  %cd /content/gdrive/MyDrive/sd/stable-diffusion-webui/modules/
+  !wget -O ui.py https://raw.githubusercontent.com/AUTOMATIC1111/stable-diffusion-webui/master/modules/ui.py
+  !sed -i 's@css = "".*@with open(os.path.join(script_path, "style.css"), "r", encoding="utf8") as file:\n        css = file.read()@' /content/gdrive/MyDrive/sd/stable-diffusion-webui/modules/ui.py  
+  %cd /content/gdrive/MyDrive/sd/stable-diffusion-webui
+  !wget -O style.css https://raw.githubusercontent.com/AUTOMATIC1111/stable-diffusion-webui/master/style.css
+  !sed -i 's@min-height: 4.*@min-height: 5.5em;@g' /content/gdrive/MyDrive/sd/stable-diffusion-webui/style.css  
+  %cd /content
+
+
+Use_Gradio_Server = False #@param {type:"boolean"}
+#@markdown  - Only if you have trouble connecting to the local server
+
+
+share=''
+if Use_Gradio_Server:
+  share='--share'
+  !sed -i '1037s@.*@            self.server_name = server_name@' /usr/local/lib/python3.7/dist-packages/gradio/blocks.py
+  !sed -i '1039s@.*@            self.server_port = server_port@' /usr/local/lib/python3.7/dist-packages/gradio/blocks.py  
+  !sed -i '1043s@.*@            self.protocol = "https" if self.local_url.startswith("https") else "http"@' /usr/local/lib/python3.7/dist-packages/gradio/blocks.py  
+  clear_output()
+  
+else:
+  share=''
+
+  !nohup lt --port 7860 > srv.txt 2>&1 &
+  time.sleep(2)
+  !grep -o 'https[^ ]*' /content/srv.txt >srvr.txt
+  time.sleep(2)
+  srv= getoutput('cat /content/srvr.txt')
+
+  !sed -i '1037s@.*@            self.server_name = "{srv[8:]}"@' /usr/local/lib/python3.7/dist-packages/gradio/blocks.py
+  !sed -i '1039s@.*@            self.server_port = 443@' /usr/local/lib/python3.7/dist-packages/gradio/blocks.py
+  !sed -i '1043s@.*@            self.protocol = "https"@' /usr/local/lib/python3.7/dist-packages/gradio/blocks.py  
+          
+  !sed -i '13s@.*@    "PUBLIC_SHARE_TRUE": "[32mConnected",@' /usr/local/lib/python3.7/dist-packages/gradio/strings.py
+  
+  !rm /content/srv.txt
+  !rm /content/srvr.txt
+  clear_output()
+
+with capture.capture_output() as cap:
+  %cd /content/gdrive/MyDrive/sd/stable-diffusion/
+
+!python /content/gdrive/MyDrive/sd/stable-diffusion-webui/webui.py $share --disable-safe-unpickle --ckpt "$path_to_trained_model"
+
+```
+
+
+  
 
 
 
